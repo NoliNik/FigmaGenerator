@@ -7,6 +7,7 @@ class StyleGenerator {
     }
     let file: File
     private var colors: [ColorStyle]!
+    private var colorSchemeOptionNames: [String] = []
     private var colorOptions: [String: [ColorStyle]] = [:]
     private var uniqueColors: [ColorStyle] {
         colorOptions.values.first ?? []
@@ -32,7 +33,7 @@ class StyleGenerator {
             return
         }
         
-        let colorSchemeOptionNames = file.document.children?
+        colorSchemeOptionNames = file.document.children?
             .compactMap({$0.name})
             .filter({!$0.trimmingCharacters(in: .whitespaces).isEmpty}) ?? []
         
@@ -125,7 +126,7 @@ class StyleGenerator {
         strings.append("\(indent)public init(with option: \(Constants.colorSchemeOptionsEnumName)) {")
         strings.append("\(indent)\(indent)self.option = option")
         strings.append("\(indent)\(indent)switch option {")
-        colorOptions.keys.sorted(by: { $0 < $1 }).forEach { option in
+        colorSchemeOptionNames.forEach { option in
             strings.append("\(indent)\(indent)case .\(option.lowercased()):")
             strings.append("\(indent)\(indent)\(indent) setup\(option)\(Constants.colorSchemeOptionsEnumName)()")
         }
@@ -133,7 +134,8 @@ class StyleGenerator {
         strings.append("\(indent)}")
         strings.append("")
         
-        colorOptions.sorted(by: { $0.key < $1.key }).forEach { option, colors in
+        colorSchemeOptionNames.forEach { option in
+            let colors = colorOptions[option] ?? []
             generateSetupColorSchemeFunc(with: option, colors: colors, strings: &strings)
             strings.append("")
         }
@@ -158,7 +160,7 @@ class StyleGenerator {
         strings.append(iOSSwiftFilePrefix)
         
         strings.append("public enum \(Constants.colorSchemeOptionsEnumName): String {")
-        colorOptions.keys.sorted(by: { $0 < $1 }).forEach { key in
+        colorSchemeOptionNames.forEach { key in
             strings.append("\(indent)case \(key.lowercased())")
         }
         strings.append("}\n")

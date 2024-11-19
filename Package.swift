@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "FigmaGenerator",
     products: [
-        .executable(name: "figmaGenerator", targets: ["FigmaGenerator"]),
+        .executable(name: "figma_generator", targets: ["FigmaGenerator"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.0.0")),
