@@ -159,7 +159,7 @@ class StyleGenerator {
         var strings: [String] = []
         strings.append(iOSSwiftFilePrefix)
         
-        strings.append("public enum \(Constants.colorSchemeOptionsEnumName): String {")
+        strings.append("public enum \(Constants.colorSchemeOptionsEnumName): String, CaseIterable {")
         colorSchemeOptionNames.forEach { key in
             strings.append("\(indent)case \(key.lowercased())")
         }
