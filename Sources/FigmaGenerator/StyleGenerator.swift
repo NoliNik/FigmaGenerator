@@ -2,12 +2,17 @@ import Foundation
 
 class StyleGenerator {
     private enum Constants {
-        static let colorSchemeOptionsEnumName = "ColorSchemeOption"
+        static let optionsEnumName = "ThemeColorType"
         static let schemeProtocolName = "ColorScheme"
     }
+    private struct OptionEnum {
+        var caseKey: String
+        var rawValue: String
+    }
+    
     let file: File
     private var colors: [ColorStyle]!
-    private var colorSchemeOptionNames: [String] = []
+    private var optionNames: [OptionEnum] = []
     private var colorOptions: [String: [ColorStyle]] = [:]
     private var uniqueColors: [ColorStyle] {
         colorOptions.values.first ?? []
@@ -33,13 +38,13 @@ class StyleGenerator {
             return
         }
         
-        colorSchemeOptionNames = file.document.children?
-            .compactMap({$0.name})
-            .filter({!$0.trimmingCharacters(in: .whitespaces).isEmpty}) ?? []
+        optionNames = file.document.children?
+            .filter({!$0.name.trimmingCharacters(in: .whitespaces).isEmpty})
+            .compactMap({ OptionEnum(caseKey: $0.name.replacingOccurrences(of: "Theme", with: ""), rawValue: $0.name) }) ?? []
         
         colors = file.styles.compactMap { (key: String, value: Style) -> ColorStyle? in
             if let color = file.findColor(styleID: key) {
-                let colorOptionPrefix = colorSchemeOptionNames.first(where: { value.name.contains("\($0)/") }) ?? ""
+                let colorOptionPrefix = optionNames.first(where: { value.name.contains("\($0.rawValue)/") })?.rawValue ?? ""
                 let style = value.withTrimmedPrexixName(prefix: colorOptionPrefix)
                 return ColorStyle(style: style, color: color, parentName: colorOptionPrefix)
             } else {
@@ -116,27 +121,27 @@ class StyleGenerator {
         let structName = output.deletingPathExtension().lastPathComponent.escaped.capitalizedFirstLetter
         let ext = iosStructSupportScheme ? ": \(Constants.schemeProtocolName)" : ""
         strings.append("public class \(structName)\(ext) {")
-        strings.append("\(indent)public var option: \(Constants.colorSchemeOptionsEnumName)\n")
+        strings.append("\(indent)public var \(Constants.optionsEnumName.loweredFirstLetter): \(Constants.optionsEnumName)\n")
         uniqueColors.forEach { color in
             strings.append("\(indent)public var \(colorName(color)) = UIColor()")
         }
 
         strings.append("")
         
-        strings.append("\(indent)public init(with option: \(Constants.colorSchemeOptionsEnumName)) {")
-        strings.append("\(indent)\(indent)self.option = option")
-        strings.append("\(indent)\(indent)switch option {")
-        colorSchemeOptionNames.forEach { option in
-            strings.append("\(indent)\(indent)case .\(option.lowercased()):")
-            strings.append("\(indent)\(indent)\(indent) setup\(option)\(Constants.colorSchemeOptionsEnumName)()")
+        strings.append("\(indent)public init(with \(Constants.optionsEnumName.loweredFirstLetter): \(Constants.optionsEnumName)) {")
+        strings.append("\(indent)\(indent)self.\(Constants.optionsEnumName.loweredFirstLetter) = \(Constants.optionsEnumName.loweredFirstLetter)")
+        strings.append("\(indent)\(indent)switch \(Constants.optionsEnumName.loweredFirstLetter) {")
+        optionNames.forEach { option in
+            strings.append("\(indent)\(indent)case .\(option.caseKey.lowercased()):")
+            strings.append("\(indent)\(indent)\(indent) setup\(option.caseKey)\(Constants.optionsEnumName)()")
         }
         strings.append("\(indent)\(indent)}")
         strings.append("\(indent)}")
         strings.append("")
         
-        colorSchemeOptionNames.forEach { option in
-            let colors = colorOptions[option] ?? []
-            generateSetupColorSchemeFunc(with: option, colors: colors, strings: &strings)
+        optionNames.forEach { option in
+            let colors = colorOptions[option.rawValue] ?? []
+            generateSetupColorSchemeFunc(with: option.caseKey, colors: colors, strings: &strings)
             strings.append("")
         }
         
@@ -147,7 +152,7 @@ class StyleGenerator {
     }
     
     private func generateSetupColorSchemeFunc(with option: String, colors: [ColorStyle], strings: inout [String]) {
-        strings.append("\(indent)private func setup\(option)\(Constants.colorSchemeOptionsEnumName)() {")
+        strings.append("\(indent)private func setup\(option)\(Constants.optionsEnumName)() {")
         colors.forEach { color in
             strings.append("\(indent)\(indent)\(colorName(color)) = \(useExtendedSRGBColorspace ? color.color.colorspaceUIColor : color.color.uiColor)")
         }
@@ -159,14 +164,14 @@ class StyleGenerator {
         var strings: [String] = []
         strings.append(iOSSwiftFilePrefix)
         
-        strings.append("public enum \(Constants.colorSchemeOptionsEnumName): String, CaseIterable {")
-        colorSchemeOptionNames.forEach { key in
-            strings.append("\(indent)case \(key.lowercased())")
+        strings.append("public enum \(Constants.optionsEnumName): String, CaseIterable {")
+        optionNames.forEach { key in
+            strings.append("\(indent)case \(key.caseKey.lowercased()) = \"\(key.rawValue)\"")
         }
         strings.append("}\n")
 
         strings.append("public protocol \(Constants.schemeProtocolName) {")
-        strings.append("\(indent)var option: \(Constants.colorSchemeOptionsEnumName) { get }\n")
+        strings.append("\(indent)var \(Constants.optionsEnumName.loweredFirstLetter): \(Constants.optionsEnumName) { get }\n")
         for color in uniqueColors {
             strings.append("\(indent)/// \(color.style.name)")
             strings.append("\(indent)var \(colorName(color)): UIColor { get }")
