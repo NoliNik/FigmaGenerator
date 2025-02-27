@@ -3,8 +3,6 @@ import Foundation
 
 private let launchURL = URL(fileURLWithPath: CommandLine.arguments[0])
 private let homeDir = launchURL.deletingLastPathComponent()
-private let appName = launchURL.lastPathComponent
-
 
 struct FigmaGenerator: ParsableCommand {
     @Argument(help: "Figma file key")
@@ -16,12 +14,12 @@ struct FigmaGenerator: ParsableCommand {
     @Option(name: .customLong("android-output"), parsing: .next, help: "Andoid Output File")
     var andoid_output_file: String?
     
-    @Option(name: .customLong("ios-output"), parsing: .next, help: "iOS Output File")
-    var ios_output_file: String?
-    
-    @Option(name: .customLong("ios-scheme-output"), parsing: .next, help: "iOS 'ColorScheme' Output File")
-    var ios_scheme_output_file: String?
-    
+    @Option(name: .customLong("ios-output"), parsing: .next, help: "iOS Current App Output Folder")
+    var ios_output_folder: String
+
+    @Option(name: .customLong("ios-brand-output"), parsing: .next, help: "iOS Brands Output Folder")
+    var ios_brand_output_folder: String
+
     @Option(name: .customLong("color-prefix"), parsing: .next, help: "Generated Color Prefix")
     var color_prefix: String?
     
@@ -51,16 +49,25 @@ struct FigmaGenerator: ParsableCommand {
     
     @Option(name: .customLong("cache-path"), parsing: .next, help: "Downloaded JSON cache path")
     var cache_path: String?
-    
+
+    @Option(name: .customLong("current-app-name"), parsing: .next, help: "Current App Name")
+    var current_app_name: String
+
+    @Option(name: .shortAndLong, parsing: .remaining, help: "Brands to generate")
+    var brands: [String] = []
+
     func run() throws {
         let fileURL = URL(string: "https://api.figma.com/v1/files/\(figma_file_key)/")!
         let file: File = try URLSession.getData(at: fileURL, figmaToken: personal_access_tokens, cachePath: cache_path?.absoluteFileURL(baseURL: homeDir))
 
         let generator = StyleGenerator(file: file)
         generator.colorPrefix = color_prefix ?? ""
-        generator.iosStructSupportScheme = ios_scheme_output_file != nil
         generator.trimEndingDigits = trim_ending_digits
         generator.useExtendedSRGBColorspace = use_extended_srgb_colorspace
+        generator.currentAppOutputFolder = ios_output_folder
+        generator.currentAppName = current_app_name
+        generator.brandsOutputFolder = ios_brand_output_folder
+        generator.brandsToGenerate = brands
 
         if let file = andoid_output_file {
             let output = file.absoluteFileURL(baseURL: homeDir)
@@ -68,17 +75,7 @@ struct FigmaGenerator: ParsableCommand {
             print("Generate: \(output.path)")
         }
 
-        if let file = ios_output_file {
-            let output = file.absoluteFileURL(baseURL: homeDir)
-            try generator.generateIOS(output: output)
-            print("Generate: \(output.path)")
-        }
-
-        if let file = ios_scheme_output_file {
-            let output = file.absoluteFileURL(baseURL: homeDir)
-            try generator.generateIOSSheme(output: output)
-            print("Generate: \(output.path)")
-        }
+        try generator.generateIOS(homeDir: homeDir)
         
         if let file = ios_typo_output {
             let output = file.absoluteFileURL(baseURL: homeDir)

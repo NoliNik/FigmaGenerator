@@ -62,3 +62,18 @@ struct DownloadLinksInfo: Codable {
     let err: String?
     let images: [String: String?]
 }
+
+struct ColorInfo {
+    var brand: String = ""
+    var systemTheme: String = ""
+    var customTheme: String?
+    var colorName: String = ""
+}
+
+struct OptionEnum {
+    var caseKey: String
+    var rawValue: String
+}
+
+typealias BrandColors = [String: BrandThemeColors]
+typealias BrandThemeColors = [String: [ColorStyle]]

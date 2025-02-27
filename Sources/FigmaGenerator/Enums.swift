@@ -17,6 +17,7 @@ enum NodeType: String, Codable {
     case COMPONENT
     case COMPONENT_SET
     case INSTANCE
+    case SECTION
 }
 
 enum EasingType: String, Codable {

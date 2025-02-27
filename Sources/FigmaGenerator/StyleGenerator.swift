@@ -5,29 +5,25 @@ class StyleGenerator {
         static let optionsEnumName = "ThemeColorType"
         static let schemeProtocolName = "ColorScheme"
     }
-    private struct OptionEnum {
-        var caseKey: String
-        var rawValue: String
-    }
     
     let file: File
     private var colors: [ColorStyle]!
-    private var optionNames: [OptionEnum] = []
-    private var colorOptions: [String: [ColorStyle]] = [:]
-    private var uniqueColors: [ColorStyle] {
-        colorOptions.values.first ?? []
-    }
+    private var brandColorsDictionary: BrandColors = [:]
     private var fonts: [FontStyle]!
     private var trimmedColorNamesCount: [String: Int] = [:]
 
     var trimEndingDigits: Bool = false
-    var iosStructSupportScheme: Bool = false
     var useExtendedSRGBColorspace: Bool = false
     var colorPrefix: String = "" {
         didSet {
             regenerateTrimMap()
         }
     }
+
+    var currentAppName: String = ""
+    var currentAppOutputFolder: String = ""
+    var brandsOutputFolder: String = ""
+    var brandsToGenerate: [String] = []
 
     init(file: File) {
         self.file = file
@@ -38,21 +34,21 @@ class StyleGenerator {
             return
         }
         
-        optionNames = file.document.children?
-            .filter({!$0.name.trimmingCharacters(in: .whitespaces).isEmpty})
-            .compactMap({ OptionEnum(caseKey: $0.name.replacingOccurrences(of: "Theme", with: ""), rawValue: $0.name) }) ?? []
-        
         colors = file.styles.compactMap { (key: String, value: Style) -> ColorStyle? in
-            if let color = file.findColor(styleID: key) {
-                let colorOptionPrefix = optionNames.first(where: { value.name.contains("\($0.rawValue)/") })?.rawValue ?? ""
-                let style = value.withTrimmedPrexixName(prefix: colorOptionPrefix)
-                return ColorStyle(style: style, color: color, parentName: colorOptionPrefix)
+            if let color = file.findColor(styleID: key), let info = ColorNameSplitter(fullColorName: value.name).getColorInfo() {
+                let style = Style(key: value.key, name: info.colorName, styleType: value.styleType, description: value.description)
+                return ColorStyle(style: style, color: color, info: info)
             } else {
                 return nil
             }
         }
         colors.sort { $0.style.name < $1.style.name }
-        colorOptions = Dictionary(grouping: colors, by: { $0.parentName })
+        let byBrand = Dictionary(grouping: colors, by: { $0.info.brand })
+        let byBrandAndTheme = byBrand.compactMap { key, value in
+            let byTheme = Dictionary(grouping: value, by: { $0.info.systemTheme })
+            return (key.lowercased(), byTheme)
+        }
+        brandColorsDictionary = Dictionary(uniqueKeysWithValues: byBrandAndTheme)
 
         fonts = file.styles.compactMap { (key: String, value: Style) -> FontStyle? in
             if let font = file.findFont(styleID: key) {
@@ -113,14 +109,59 @@ class StyleGenerator {
         try save(text: text, to: output)
     }
 
-    func generateIOS(output: URL) throws {
+    func generateIOS(homeDir: URL) throws {
         process()
+
+        for brand in brandsToGenerate {
+            let brandOutputFolder = brandsOutputFolder.replacingOccurrences(of: "@BRAND", with: brand)
+
+            let brandThemeColors = brandColorsDictionary[brand] ?? [:]
+
+            try generateLightTheme(with: brandThemeColors, to: brandOutputFolder, homeDir: homeDir)
+            try generateDarkTheme(with: brandThemeColors, to: brandOutputFolder, homeDir: homeDir)
+            try generateScheme(with: brandThemeColors, to: brandOutputFolder, homeDir: homeDir)
+
+            if brand == currentAppName {
+                try generateLightTheme(with: brandThemeColors, to: currentAppOutputFolder, homeDir: homeDir)
+                try generateDarkTheme(with: brandThemeColors, to: currentAppOutputFolder, homeDir: homeDir)
+                try generateScheme(with: brandThemeColors, to: currentAppOutputFolder, homeDir: homeDir)
+            }
+        }
+    }
+
+    private func generateLightTheme(with brandThemeColors: BrandThemeColors, to folder: String, homeDir: URL) throws {
+        let lightThemeFile = folder.appending("/Light\(Constants.schemeProtocolName).swift")
+        let lightOutput = lightThemeFile.absoluteFileURL(baseURL: homeDir)
+        let colors = brandThemeColors["Light"] ?? []
+        try generateIOS(with: colors, output: lightOutput)
+    }
+
+    private func generateDarkTheme(with brandThemeColors: BrandThemeColors, to folder: String, homeDir: URL) throws {
+        let darkThemeFile = folder.appending("/Dark\(Constants.schemeProtocolName).swift")
+        let darkOutput = darkThemeFile.absoluteFileURL(baseURL: homeDir)
+        let colors = brandThemeColors["Dark"] ?? []
+        try generateIOS(with: colors, output: darkOutput)
+    }
+
+    private func generateScheme(with brandThemeColors: BrandThemeColors, to folder: String, homeDir: URL) throws {
+        let schemeFile = folder.appending("/\(Constants.schemeProtocolName).swift")
+        let schemeOutput = schemeFile.absoluteFileURL(baseURL: homeDir)
+        try generateIOSSheme(with: brandThemeColors, output: schemeOutput)
+    }
+
+    private func generateIOS(with colors: [ColorStyle], output: URL) throws {
+        print("Generate: \(output.path)")
+        let parser = Parser(colors: colors)
+        let uniqueColors = parser.getUniqueColors()
+        let themeOptions = parser.getThemeOptions()
+        let customThemeGroupedColors = parser.customThemeGroupedColors
+        let baseColors = customThemeGroupedColors[nil] ?? []
+
         var strings: [String] = []
         strings.append(iOSSwiftFilePrefix)
 
         let structName = output.deletingPathExtension().lastPathComponent.escaped.capitalizedFirstLetter
-        let ext = iosStructSupportScheme ? ": \(Constants.schemeProtocolName)" : ""
-        strings.append("public class \(structName)\(ext) {")
+        strings.append("public class \(structName)\(": \(Constants.schemeProtocolName)") {")
         strings.append("\(indent)public var \(Constants.optionsEnumName.loweredFirstLetter): \(Constants.optionsEnumName)\n")
         uniqueColors.forEach { color in
             strings.append("\(indent)public var \(colorName(color)) = UIColor()")
@@ -131,16 +172,24 @@ class StyleGenerator {
         strings.append("\(indent)public init(with \(Constants.optionsEnumName.loweredFirstLetter): \(Constants.optionsEnumName)) {")
         strings.append("\(indent)\(indent)self.\(Constants.optionsEnumName.loweredFirstLetter) = \(Constants.optionsEnumName.loweredFirstLetter)")
         strings.append("\(indent)\(indent)switch \(Constants.optionsEnumName.loweredFirstLetter) {")
-        optionNames.forEach { option in
+        themeOptions.forEach { option in
             strings.append("\(indent)\(indent)case .\(option.caseKey.lowercased()):")
             strings.append("\(indent)\(indent)\(indent) setup\(option.caseKey)\(Constants.optionsEnumName)()")
         }
         strings.append("\(indent)\(indent)}")
+        strings.append("\(indent)\(indent)setupBaseColors()")
         strings.append("\(indent)}")
         strings.append("")
-        
-        optionNames.forEach { option in
-            let colors = colorOptions[option.rawValue] ?? []
+
+        strings.append("\(indent)private func setupBaseColors() {")
+        baseColors.forEach { color in
+            strings.append("\(indent)\(indent)\(colorName(color)) = \(useExtendedSRGBColorspace ? color.color.colorspaceUIColor : color.color.uiColor)")
+        }
+        strings.append("\(indent)}")
+        strings.append("")
+
+        themeOptions.forEach { option in
+            let colors = customThemeGroupedColors[option.rawValue] ?? []
             generateSetupColorSchemeFunc(with: option.caseKey, colors: colors, strings: &strings)
             strings.append("")
         }
@@ -150,22 +199,19 @@ class StyleGenerator {
         let text = strings.joined(separator: "\n")
         try save(text: text, to: output)
     }
-    
-    private func generateSetupColorSchemeFunc(with option: String, colors: [ColorStyle], strings: inout [String]) {
-        strings.append("\(indent)private func setup\(option)\(Constants.optionsEnumName)() {")
-        colors.forEach { color in
-            strings.append("\(indent)\(indent)\(colorName(color)) = \(useExtendedSRGBColorspace ? color.color.colorspaceUIColor : color.color.uiColor)")
-        }
-        strings.append("\(indent)}")
-    }
 
-    func generateIOSSheme(output: URL) throws {
-        process()
+    func generateIOSSheme(with brandThemeColors: BrandThemeColors, output: URL) throws {
+        print("Generate: \(output.path)")
+
+        let parser = Parser(colors: brandThemeColors)
+        let uniqueColors = parser.getUniqueColors()
+        let themeOptions = parser.getThemeOptions()
+
         var strings: [String] = []
         strings.append(iOSSwiftFilePrefix)
         
         strings.append("public enum \(Constants.optionsEnumName): String, CaseIterable {")
-        optionNames.forEach { key in
+        themeOptions.forEach { key in
             strings.append("\(indent)case \(key.caseKey.lowercased()) = \"\(key.rawValue)\"")
         }
         strings.append("}\n")
@@ -196,6 +242,14 @@ class StyleGenerator {
 
         let text = strings.joined(separator: "\n")
         try save(text: text, to: output)
+    }
+
+    private func generateSetupColorSchemeFunc(with option: String, colors: [ColorStyle], strings: inout [String]) {
+        strings.append("\(indent)private func setup\(option)\(Constants.optionsEnumName)() {")
+        colors.forEach { color in
+            strings.append("\(indent)\(indent)\(colorName(color)) = \(useExtendedSRGBColorspace ? color.color.colorspaceUIColor : color.color.uiColor)")
+        }
+        strings.append("\(indent)}")
     }
 
     func generateAndroid(output: URL) throws {
