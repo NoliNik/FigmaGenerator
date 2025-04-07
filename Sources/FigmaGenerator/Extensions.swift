@@ -9,16 +9,42 @@ extension Array where Element == String {
 
 typealias NameComponent = String
 extension File {
-    func findColor(styleID: String) -> Color? {
+    func findColor(styleID: String) -> (color: Color?, id: String?) {
         let node = document.nodeWith(styleID: styleID)
-        return node?.fills?.first?.fixedOpacityColor
+        return (node?.fills?.first?.fixedOpacityColor, node?.id)
     }
 
     func findFont(styleID: String) -> TypeStyle? {
         let node = document.nodeWith(styleID: styleID)
         return node?.style
     }
-    
+
+    func findAllGradients() -> [Gradient] {
+        let nodes = findNode(node: document, name: "Gradient/")
+        let gradients = nodes.compactMap { Gradient(
+            id: $0.id,
+            name: $0.name,
+            colors: ($0.children ?? []).compactMap { GradientColor(id: $0.id, color: $0.fills?.first?.fixedOpacityColor) } //Должно быть правильно построение архитектуры градиентов всех. без 1/2/3/4/pattern и 1/2/3/pattern всяких
+        )}
+        return gradients
+    }
+
+    func findNode(node: Node, name: String) -> [Node] {
+        var frames: [Node] = []
+
+        if node.name.starts(with: name) {
+            frames.append(node)
+        }
+
+        if let children = node.children {
+            for child in children {
+                frames.append(contentsOf: findNode(node: child, name: name))
+            }
+        }
+
+        return frames
+    }
+
     func findComponent(componentID: String) -> (Node, [NameComponent])? {
         guard let pair = document.findWith(componentID: componentID) else { return nil }
         let components = Array(pair.1.dropFirst())

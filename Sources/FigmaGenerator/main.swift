@@ -53,6 +53,9 @@ struct FigmaGenerator: ParsableCommand {
     @Option(name: .customLong("current-app-name"), parsing: .next, help: "Current App Name")
     var current_app_name: String
 
+    @Option(name: .customLong("source"), parsing: .next, help: "Themes or Gradients to generate")
+    var source: String
+
     @Option(name: .shortAndLong, parsing: .remaining, help: "Brands to generate")
     var brands: [String] = []
 
@@ -68,6 +71,7 @@ struct FigmaGenerator: ParsableCommand {
         generator.currentAppName = current_app_name
         generator.brandsOutputFolder = ios_brand_output_folder
         generator.brandsToGenerate = brands
+        generator.source = source
 
         if let file = andoid_output_file {
             let output = file.absoluteFileURL(baseURL: homeDir)

@@ -64,10 +64,22 @@ struct DownloadLinksInfo: Codable {
 }
 
 struct ColorInfo {
+    var id: String = ""
     var brand: String = ""
     var systemTheme: String = ""
     var customTheme: String?
     var colorName: String = ""
+}
+
+struct Gradient {
+    var id: String
+    var name: String
+    var colors: [GradientColor]
+}
+
+struct GradientColor {
+    var id: String
+    var color: Color?
 }
 
 struct OptionEnum {

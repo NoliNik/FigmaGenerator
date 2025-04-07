@@ -4,12 +4,14 @@ class StyleGenerator {
     private enum Constants {
         static let optionsEnumName = "ThemeColorType"
         static let schemeProtocolName = "ColorScheme"
+        static let gradientsName = "Gradients"
     }
     
     let file: File
     private var colors: [ColorStyle]!
     private var brandColorsDictionary: BrandColors = [:]
     private var fonts: [FontStyle]!
+    private var gradients: [Gradient] = []
     private var trimmedColorNamesCount: [String: Int] = [:]
 
     var trimEndingDigits: Bool = false
@@ -20,6 +22,7 @@ class StyleGenerator {
         }
     }
 
+    var source: String = ""
     var currentAppName: String = ""
     var currentAppOutputFolder: String = ""
     var brandsOutputFolder: String = ""
@@ -35,8 +38,10 @@ class StyleGenerator {
         }
         
         colors = file.styles.compactMap { (key: String, value: Style) -> ColorStyle? in
-            if let color = file.findColor(styleID: key), let info = ColorNameSplitter(fullColorName: value.name).getColorInfo() {
+            let colorInfo = file.findColor(styleID: key)
+            if let color = colorInfo.color, let id = colorInfo.id, var info = ColorNameSplitter(fullColorName: value.name).getColorInfo() {
                 let style = Style(key: value.key, name: info.colorName, styleType: value.styleType, description: value.description)
+                info.id = id
                 return ColorStyle(style: style, color: color, info: info)
             } else {
                 return nil
@@ -114,19 +119,93 @@ class StyleGenerator {
 
         for brand in brandsToGenerate {
             let brandOutputFolder = brandsOutputFolder.replacingOccurrences(of: "@BRAND", with: brand)
-
             let brandThemeColors = brandColorsDictionary[brand] ?? [:]
 
-            try generateLightTheme(with: brandThemeColors, to: brandOutputFolder, homeDir: homeDir)
-            try generateDarkTheme(with: brandThemeColors, to: brandOutputFolder, homeDir: homeDir)
-            try generateScheme(with: brandThemeColors, to: brandOutputFolder, homeDir: homeDir)
-
-            if brand == currentAppName {
-                try generateLightTheme(with: brandThemeColors, to: currentAppOutputFolder, homeDir: homeDir)
-                try generateDarkTheme(with: brandThemeColors, to: currentAppOutputFolder, homeDir: homeDir)
-                try generateScheme(with: brandThemeColors, to: currentAppOutputFolder, homeDir: homeDir)
+            if source == "themes" {
+                try generateThemeForBrand(brand, colors: brandThemeColors, brandOutputFolder: brandOutputFolder, homeDir: homeDir)
+            } else if source == "gradients" {
+                try generateGradientsForBrand(brand, colors: brandThemeColors, brandOutputFolder: brandOutputFolder, homeDir: homeDir)
             }
         }
+    }
+
+    private func generateThemeForBrand(_ brand: String, colors: BrandThemeColors, brandOutputFolder: String, homeDir: URL) throws {
+        let brandOutputFolder = "\(brandOutputFolder)/Theme"
+        let currentOutputFolder = "\(currentAppOutputFolder)/Theme"
+
+        try generateLightTheme(with: colors, to: brandOutputFolder, homeDir: homeDir)
+        try generateDarkTheme(with: colors, to: brandOutputFolder, homeDir: homeDir)
+        try generateScheme(with: colors, to: brandOutputFolder, homeDir: homeDir)
+
+        if brand == currentAppName {
+            try generateLightTheme(with: colors, to: currentOutputFolder, homeDir: homeDir)
+            try generateDarkTheme(with: colors, to: currentOutputFolder, homeDir: homeDir)
+            try generateScheme(with: colors, to: currentOutputFolder, homeDir: homeDir)
+        }
+    }
+
+    private func generateGradientsForBrand(_ brand: String, colors: BrandThemeColors, brandOutputFolder: String, homeDir: URL) throws {
+        let brandOutputFile = "\(brandOutputFolder)/\(Constants.gradientsName)/\(Constants.gradientsName).swift"
+        let currentOutputFile = "\(currentAppOutputFolder)/\(Constants.gradientsName)/\(Constants.gradientsName).swift"
+
+        let output = brandOutputFile.absoluteFileURL(baseURL: homeDir)
+        try generateGradients(with: colors, output: output)
+
+        if brand == currentAppName {
+            let output = currentOutputFile.absoluteFileURL(baseURL: homeDir)
+            try generateGradients(with: colors, output: output)
+        }
+    }
+
+    private func generateGradients(with colors: BrandThemeColors, output: URL) throws {
+        print("Generate: \(output.path)")
+        let dark = colors["Dark"]?.compactMap { $0.description.replacingOccurrences(of: "Gradient/", with: "").split(separator: ":") } ?? []
+        let light = colors["Light"]?.compactMap { $0.description.replacingOccurrences(of: "Gradient/", with: "").split(separator: ":") } ?? []
+
+        let darkDto = Dictionary(grouping: dark, by: { Int($0.first?.split(separator: "/").first ?? "0") })
+        let lightDto = Dictionary(grouping: light, by: { Int($0.first?.split(separator: "/").first ?? "0") })
+
+        var strings: [String] = []
+        strings.append(iOSSwiftFilePrefix)
+
+        let structName = output.deletingPathExtension().lastPathComponent.escaped.capitalizedFirstLetter
+        strings.append("public class \(structName) {")
+        strings.append("\(indent)public static var light: [GradientModel] = [")
+        lightDto.forEach { dict in
+            guard let id = dict.key,
+                  let firstColor = dict.value.first(where: { $0.first?.contains("Start") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let secondColor = dict.value.first(where: { $0.first?.contains("Middle") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let thirdColor = dict.value.first(where: { $0.first?.contains("End") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines)  else { return }
+            strings.append("\(indent)\(indent).init(id: \"\(id)\", order: \(id), colors: [\"\(firstColor)\", \"\(secondColor)\", \"\(thirdColor)\"]),")
+        }
+        strings.append("\(indent)]")
+        strings.append("")
+        strings.append("\(indent)public static var dark: [GradientModel] = [")
+        darkDto.forEach { dict in
+            guard let id = dict.key,
+                  let firstColor = dict.value.first(where: { $0.first?.contains("Start") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let secondColor = dict.value.first(where: { $0.first?.contains("Middle") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let thirdColor = dict.value.first(where: { $0.first?.contains("End") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines)  else { return }
+            strings.append("\(indent)\(indent).init(id: \"\(id)\", order: \(id), colors: [\"\(firstColor)\", \"\(secondColor)\", \"\(thirdColor)\"]),")
+        }
+        strings.append("\(indent)]")
+        strings.append("}")
+        strings.append("")
+
+        strings.append("public class GradientModel {")
+        strings.append("\(indent)public var id: String")
+        strings.append("\(indent)public var order: Int")
+        strings.append("\(indent)public var colors: [String]")
+        strings.append("")
+        strings.append("\(indent)public init(id: String, order: Int, colors: [String]) {")
+        strings.append("\(indent)\(indent)self.id = id")
+        strings.append("\(indent)\(indent)self.order = order")
+        strings.append("\(indent)\(indent)self.colors = colors")
+        strings.append("\(indent)}")
+        strings.append("}")
+
+        let text = strings.joined(separator: "\n")
+        try save(text: text, to: output)
     }
 
     private func generateLightTheme(with brandThemeColors: BrandThemeColors, to folder: String, homeDir: URL) throws {
