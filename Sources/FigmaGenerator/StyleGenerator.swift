@@ -170,25 +170,9 @@ class StyleGenerator {
 
         let structName = output.deletingPathExtension().lastPathComponent.escaped.capitalizedFirstLetter
         strings.append("public class \(structName) {")
-        strings.append("\(indent)public static var light: [GradientModel] = [")
-        lightDto.forEach { dict in
-            guard let id = dict.key,
-                  let firstColor = dict.value.first(where: { $0.first?.contains("Start") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  let secondColor = dict.value.first(where: { $0.first?.contains("Middle") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  let thirdColor = dict.value.first(where: { $0.first?.contains("End") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines)  else { return }
-            strings.append("\(indent)\(indent).init(id: \"\(id)\", order: \(id), colors: [\"\(firstColor)\", \"\(secondColor)\", \"\(thirdColor)\"]),")
-        }
-        strings.append("\(indent)]")
+        generateThemeGradients(lightDto, themeName: "light", strings: &strings)
         strings.append("")
-        strings.append("\(indent)public static var dark: [GradientModel] = [")
-        darkDto.forEach { dict in
-            guard let id = dict.key,
-                  let firstColor = dict.value.first(where: { $0.first?.contains("Start") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  let secondColor = dict.value.first(where: { $0.first?.contains("Middle") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  let thirdColor = dict.value.first(where: { $0.first?.contains("End") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines)  else { return }
-            strings.append("\(indent)\(indent).init(id: \"\(id)\", order: \(id), colors: [\"\(firstColor)\", \"\(secondColor)\", \"\(thirdColor)\"]),")
-        }
-        strings.append("\(indent)]")
+        generateThemeGradients(darkDto, themeName: "dark", strings: &strings)
         strings.append("}")
         strings.append("")
 
@@ -206,6 +190,18 @@ class StyleGenerator {
 
         let text = strings.joined(separator: "\n")
         try save(text: text, to: output)
+    }
+
+    private func generateThemeGradients(_ gradients: [Int? : [[String.SubSequence]]], themeName: String, strings: inout [String]) {
+        strings.append("\(indent)public static var \(themeName): [GradientModel] = [")
+        gradients.sorted { $0.key ?? 0 < $1.key ?? 0 }.forEach { dict in
+            guard let id = dict.key,
+                  let firstColor = dict.value.first(where: { $0.first?.contains("Start") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let secondColor = dict.value.first(where: { $0.first?.contains("Middle") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let thirdColor = dict.value.first(where: { $0.first?.contains("End") ?? false })?.last?.trimmingCharacters(in: .whitespacesAndNewlines)  else { return }
+            strings.append("\(indent)\(indent).init(id: \"\(id)\", order: \(id), colors: [\"\(firstColor)\", \"\(secondColor)\", \"\(thirdColor)\"]),")
+        }
+        strings.append("\(indent)]")
     }
 
     private func generateLightTheme(with brandThemeColors: BrandThemeColors, to folder: String, homeDir: URL) throws {
