@@ -15,10 +15,10 @@ struct FigmaGenerator: ParsableCommand {
     var andoid_output_file: String?
     
     @Option(name: .customLong("ios-output"), parsing: .next, help: "iOS Current App Output Folder")
-    var ios_output_folder: String
+    var ios_output_folder: String?
 
     @Option(name: .customLong("ios-brand-output"), parsing: .next, help: "iOS Brands Output Folder")
-    var ios_brand_output_folder: String
+    var ios_brand_output_folder: String?
 
     @Option(name: .customLong("color-prefix"), parsing: .next, help: "Generated Color Prefix")
     var color_prefix: String?
@@ -51,10 +51,10 @@ struct FigmaGenerator: ParsableCommand {
     var cache_path: String?
 
     @Option(name: .customLong("current-app-name"), parsing: .next, help: "Current App Name")
-    var current_app_name: String
+    var current_app_name: String?
 
     @Option(name: .customLong("source"), parsing: .next, help: "Themes or Gradients to generate")
-    var source: String
+    var source: String?
 
     @Option(name: .shortAndLong, parsing: .remaining, help: "Brands to generate")
     var brands: [String] = []
@@ -67,11 +67,6 @@ struct FigmaGenerator: ParsableCommand {
         generator.colorPrefix = color_prefix ?? ""
         generator.trimEndingDigits = trim_ending_digits
         generator.useExtendedSRGBColorspace = use_extended_srgb_colorspace
-        generator.currentAppOutputFolder = ios_output_folder
-        generator.currentAppName = current_app_name
-        generator.brandsOutputFolder = ios_brand_output_folder
-        generator.brandsToGenerate = brands
-        generator.source = source
 
         if let file = andoid_output_file {
             let output = file.absoluteFileURL(baseURL: homeDir)
@@ -79,8 +74,15 @@ struct FigmaGenerator: ParsableCommand {
             print("Generate: \(output.path)")
         }
 
-        try generator.generateIOS(homeDir: homeDir)
-        
+        if let folder = ios_output_folder, let brandsFolder = ios_brand_output_folder, let currentAppName = current_app_name, let source = source {
+            generator.currentAppOutputFolder = folder
+            generator.currentAppName = currentAppName
+            generator.brandsOutputFolder = brandsFolder
+            generator.brandsToGenerate = brands
+            generator.source = source
+            try generator.generateIOS(homeDir: homeDir)
+        }
+
         if let file = ios_typo_output {
             let output = file.absoluteFileURL(baseURL: homeDir)
             try generator.generateIOSFonts(output: output)
