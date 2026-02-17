@@ -24,6 +24,7 @@ extension URLSession {
                     }
                     response = try JSONDecoder().decode(T.self, from: data)
                 } catch {
+                    print("Error decoding. Original string data: \(String(data: data!, encoding: .utf8))")
                     resultError = error
                 }
                 semaphore.signal()
