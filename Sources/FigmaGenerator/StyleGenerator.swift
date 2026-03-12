@@ -23,8 +23,8 @@ class StyleGenerator {
     }
 
     var source: String = ""
-    var currentAppName: String = ""
-    var currentAppOutputFolder: String = ""
+    var currentAppName: String?
+    var currentAppOutputFolder: String?
     var brandsOutputFolder: String = ""
     var brandsToGenerate: [String] = []
 
@@ -131,27 +131,27 @@ class StyleGenerator {
 
     private func generateThemeForBrand(_ brand: String, colors: BrandThemeColors, brandOutputFolder: String, homeDir: URL) throws {
         let brandOutputFolder = "\(brandOutputFolder)/Theme"
-        let currentOutputFolder = "\(currentAppOutputFolder)/Theme"
 
         try generateLightTheme(with: colors, to: brandOutputFolder, homeDir: homeDir)
         try generateDarkTheme(with: colors, to: brandOutputFolder, homeDir: homeDir)
         try generateScheme(with: colors, to: brandOutputFolder, homeDir: homeDir)
 
-        if brand == currentAppName {
-            try generateLightTheme(with: colors, to: currentOutputFolder, homeDir: homeDir)
-            try generateDarkTheme(with: colors, to: currentOutputFolder, homeDir: homeDir)
-            try generateScheme(with: colors, to: currentOutputFolder, homeDir: homeDir)
+        if brand == currentAppName, let currentAppOutputFolder {
+            let currentAppOutputFolderPath = "\(currentAppOutputFolder)/Theme"
+            try generateLightTheme(with: colors, to: currentAppOutputFolderPath, homeDir: homeDir)
+            try generateDarkTheme(with: colors, to: currentAppOutputFolderPath, homeDir: homeDir)
+            try generateScheme(with: colors, to: currentAppOutputFolderPath, homeDir: homeDir)
         }
     }
 
     private func generateGradientsForBrand(_ brand: String, colors: BrandThemeColors, brandOutputFolder: String, homeDir: URL) throws {
         let brandOutputFile = "\(brandOutputFolder)/\(Constants.gradientsName)/\(Constants.gradientsName).swift"
-        let currentOutputFile = "\(currentAppOutputFolder)/\(Constants.gradientsName)/\(Constants.gradientsName).swift"
 
         let output = brandOutputFile.absoluteFileURL(baseURL: homeDir)
         try generateGradients(with: colors, output: output)
 
-        if brand == currentAppName {
+        if brand == currentAppName, let currentAppOutputFolder {
+            let currentOutputFile = "\(currentAppOutputFolder)/\(Constants.gradientsName)/\(Constants.gradientsName).swift"
             let output = currentOutputFile.absoluteFileURL(baseURL: homeDir)
             try generateGradients(with: colors, output: output)
         }

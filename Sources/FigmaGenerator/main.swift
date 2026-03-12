@@ -74,9 +74,9 @@ struct FigmaGenerator: ParsableCommand {
             print("Generate: \(output.path)")
         }
 
-        if let folder = ios_output_folder, let brandsFolder = ios_brand_output_folder, let currentAppName = current_app_name, let source = source {
-            generator.currentAppOutputFolder = folder
-            generator.currentAppName = currentAppName
+        if let source, let brandsFolder = ios_brand_output_folder {
+            generator.currentAppOutputFolder = ios_output_folder
+            generator.currentAppName = current_app_name
             generator.brandsOutputFolder = brandsFolder
             generator.brandsToGenerate = brands
             generator.source = source
