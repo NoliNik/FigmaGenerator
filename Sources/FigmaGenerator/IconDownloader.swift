@@ -84,6 +84,42 @@ final class IconDownloader {
         }
     }
     
+    func downloadSpecialPDFs(output: URL) throws {
+        for (key, _) in file.components {
+            for pair in file.findAllComponents(componentID: key) {
+                guard pair.0.name.contains("/") == false else {
+                    print("Skip component with id: \(pair.0.id) ... invalid name: \(pair.0.name)")
+                    continue
+                }
+
+                let fullName = pair.1.joined(separator: "/")
+
+                guard docPaths?.contains(where: { fullName.hasPrefix($0) }) ?? true else {
+                    continue
+                }
+
+                let assetRelatedPath = (dropCanvaName ? pair.1.dropFirst().joined(separator: "/") : fullName) + ".imageset"
+
+                let assetURL = output.appendingPathComponent(assetRelatedPath)
+                guard FileManager.default.fileExists(atPath: assetURL.path, isDirectory: nil) == false else {
+                    continue
+                }
+
+                missedAssets[assetURL] = pair.0
+            }
+        }
+
+        let ids = missedAssets.map { $0.value.id }
+        guard ids.isEmpty == false else { return }
+
+        let info = try getDownloadInfo(ids: ids, format: "pdf")
+        try downloadMissedPDFs(links: info)
+
+        try Set(missedAssets.map { $0.key.deletingLastPathComponent() }).forEach {
+            try placeContentJSON(folder: $0, topLevel: output)
+        }
+    }
+
     private func placeContentJSON(folder: URL, topLevel: URL) throws {
         guard topLevel.path != folder.path else { return }
         

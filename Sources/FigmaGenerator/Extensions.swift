@@ -50,6 +50,11 @@ extension File {
         let components = Array(pair.1.dropFirst())
         return (pair.0, components)
     }
+
+    func findAllComponents(componentID: String) -> [(Node, [NameComponent])] {
+        return document.findAllWith(componentID: componentID, path: [])
+            .map { ($0.0, Array($0.1.dropFirst())) }
+    }
 }
 
 extension Style {
@@ -88,6 +93,18 @@ extension Node {
             }
             return nil
         }
+    }
+
+    func findAllWith(componentID id: String, path: [String]) -> [(Node, [NameComponent])] {
+        let currentPath = path + [name]
+        var results: [(Node, [NameComponent])] = []
+        if componentId == id {
+            results.append((self, currentPath))
+        }
+        for ch in children ?? [] {
+            results.append(contentsOf: ch.findAllWith(componentID: id, path: currentPath))
+        }
+        return results
     }
 }
 
