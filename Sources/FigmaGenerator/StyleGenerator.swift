@@ -237,9 +237,9 @@ class StyleGenerator {
 
         let structName = output.deletingPathExtension().lastPathComponent.escaped.capitalizedFirstLetter
         strings.append("public class \(structName)\(": \(Constants.schemeProtocolName)") {")
-        strings.append("\(indent)public var \(Constants.optionsEnumName.loweredFirstLetter): \(Constants.optionsEnumName)\n")
+        strings.append("\(indent)public private(set) var \(Constants.optionsEnumName.loweredFirstLetter): \(Constants.optionsEnumName)\n")
         uniqueColors.forEach { color in
-            strings.append("\(indent)public var \(colorName(color)) = UIColor()")
+            strings.append("\(indent)public private(set) var \(colorName(color)) = UIColor()")
         }
 
         strings.append("")
