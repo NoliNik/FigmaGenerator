@@ -31,6 +31,9 @@ struct FigmaGenerator: ParsableCommand {
     
     @Option(name: .customLong("ios-icons-output"), parsing: .next, help: "iOS Icon Output Folder (.xcassets)")
     var ios_icons_output_folder: String?
+
+    @Option(name: .customLong("ios-icons-special-output"), parsing: .next, help: "iOS Special Icon Output Folder (.xcassets), only ✅ For Developers canvas")
+    var ios_icons_special_output_folder: String?
     
     @Option(name: .customLong("ios-typo-output"), parsing: .next, help: "iOS Fonts Output File")
     var ios_typo_output: String?
@@ -97,6 +100,16 @@ struct FigmaGenerator: ParsableCommand {
             downloaded.iconsAsTemplate = icons_as_template
             downloaded.useAbsoluteBounds = use_absolute_bounds
             try downloaded.downloadPDFs(output: output)
+        }
+
+        if let folder = ios_icons_special_output_folder {
+            let output = folder.absoluteFileURL(baseURL: homeDir)
+            let downloaded = IconDownloader(file: file, fileKey: figma_file_key, accessToken: personal_access_tokens)
+            downloaded.docPaths = doc_paths
+            downloaded.dropCanvaName = drop_canva_name
+            downloaded.iconsAsTemplate = icons_as_template
+            downloaded.useAbsoluteBounds = use_absolute_bounds
+            try downloaded.downloadSpecialPDFs(output: output)
         }
     }
 }
